@@ -28,11 +28,46 @@ const OVERALL_MEAN = 37.09379897;
 const OVERALL_STD = 0.69606188;
 
 const TRAJECTORIES = [
-  { code: 1, name: "Hypothermia", a: -0.000078, b: 0.010543, c: -1.522477 },
-  { code: 2, name: "Low-grade fever", a: -0.000322, b: 0.029391, c: -0.163585 },
-  { code: 3, name: "Normothermia", a: -0.000034, b: 0.002003, c: -0.415289 },
-  { code: 4, name: "Rapidly resolving high fever", a: 0.000363, b: -0.045280, c: 1.258603 },
-  { code: 5, name: "Sustained high fever", a: -0.000172, b: 0.010583, c: 1.140373 },
+  {
+    code: 1,
+    name: "Hypothermia",
+    a: -0.000078,
+    b: 0.010543,
+    c: -1.522477,
+    mortality28: "28.6%",
+  },
+  {
+    code: 2,
+    name: "Low-grade fever",
+    a: -0.000322,
+    b: 0.029391,
+    c: -0.163585,
+    mortality28: "17.9%",
+  },
+  {
+    code: 3,
+    name: "Normothermia",
+    a: -0.000034,
+    b: 0.002003,
+    c: -0.415289,
+    mortality28: "17.5%",
+  },
+  {
+    code: 4,
+    name: "Rapidly resolving high fever",
+    a: 0.000363,
+    b: -0.045280,
+    c: 1.258603,
+    mortality28: "13.4%",
+  },
+  {
+    code: 5,
+    name: "Sustained high fever",
+    a: -0.000172,
+    b: 0.010583,
+    c: 1.140373,
+    mortality28: "20.7%",
+  },
 ];
 
 function format8(value) {
@@ -74,6 +109,7 @@ function classifyTrajectory(records) {
   const rssValues = TRAJECTORIES.map((traj) => ({
     code: traj.code,
     name: traj.name,
+    mortality28: traj.mortality28,
     rss: calculateRss(traj.a, traj.b, traj.c, timeList, measurementList),
   }));
 
@@ -299,13 +335,14 @@ export default function App() {
               <p>
                 最终归类：Group {finalResult.best.code} - {finalResult.best.name}
               </p>
+              <p>预计 28 天病死率：{finalResult.best.mortality28}</p>
               <p>最小 RSS：{finalResult.best.rss.toFixed(8)}</p>
 
               <h4>五个亚组 RSS</h4>
               <ul>
                 {finalResult.rssValues.map((item) => (
                   <li key={item.code}>
-                    Group {item.code} - {item.name}: {item.rss.toFixed(8)}
+                    Group {item.code} - {item.name}: RSS = {item.rss.toFixed(8)}, 28-day mortality = {item.mortality28}
                   </li>
                 ))}
               </ul>
