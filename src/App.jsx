@@ -19,6 +19,7 @@ const SITE_OPTIONS = ["颞温", "鼓膜温", "腋温", "血温", "食管温", "�
 const OVERALL_MEAN = 37.09379897;
 const OVERALL_STD = 0.69606188;
 
+// 这里把 mortality28 改成数值型，便于加权计算
 const TRAJECTORIES = [
   {
     code: 1,
@@ -26,7 +27,7 @@ const TRAJECTORIES = [
     a: -0.000078,
     b: 0.010543,
     c: -1.522477,
-    mortality28: "28.6%",
+    mortality28: 28.6,
   },
   {
     code: 2,
@@ -34,7 +35,7 @@ const TRAJECTORIES = [
     a: -0.000322,
     b: 0.029391,
     c: -0.163585,
-    mortality28: "17.9%",
+    mortality28: 17.9,
   },
   {
     code: 3,
@@ -42,7 +43,7 @@ const TRAJECTORIES = [
     a: -0.000034,
     b: 0.002003,
     c: -0.415289,
-    mortality28: "17.5%",
+    mortality28: 17.5,
   },
   {
     code: 4,
@@ -50,7 +51,7 @@ const TRAJECTORIES = [
     a: 0.000363,
     b: -0.045280,
     c: 1.258603,
-    mortality28: "13.4%",
+    mortality28: 13.4,
   },
   {
     code: 5,
@@ -58,7 +59,7 @@ const TRAJECTORIES = [
     a: -0.000172,
     b: 0.010583,
     c: 1.140373,
-    mortality28: "20.7%",
+    mortality28: 20.7,
   },
 ];
 
@@ -68,6 +69,10 @@ function format8(value) {
 
 function format2(value) {
   return Number(value).toFixed(2);
+}
+
+function formatPercent(value, digits = 1) {
+  return `${Number(value).toFixed(digits)}%`;
 }
 
 function calculateRss(a, b, c, timeList, measurementList) {
@@ -97,6 +102,19 @@ function standardizeTemperature(temperature) {
   return Number(((Number(temperature) - OVERALL_MEAN) / OVERALL_STD).toFixed(8));
 }
 
+// 根据 RSS 反比计算各亚表型权重
+function calculateSubtypeWeights(rssValues) {
+  const EPS = 1e-12;
+
+  const inverseRssList = rssValues.map((item) => 1 / Math.max(item.rss, EPS));
+  const inverseRssSum = inverseRssList.reduce((sum, value) => sum + value, 0);
+
+  return rssValues.map((item, index) => ({
+    ...item,
+    weight: inverseRssSum > 0 ? inverseRssList[index] / inverseRssSum : 0,
+  }));
+}
+
 function classifyTrajectory(records) {
   const timeList = records.map((item) => Number(item.time));
   const measurementList = records.map((item) => Number(item.standardizedTemperature));
@@ -109,7 +127,20 @@ function classifyTrajectory(records) {
   }));
 
   const best = rssValues.reduce((min, cur) => (cur.rss < min.rss ? cur : min), rssValues[0]);
-  return { best, rssValues };
+
+  const weightedRssValues = calculateSubtypeWeights(rssValues);
+
+  const weightedMortality28 = weightedRssValues.reduce(
+    (sum, item) => sum + item.weight * item.mortality28,
+    0
+  );
+
+  return {
+    best,
+    rssValues,
+    weightedRssValues,
+    weightedMortality28,
+  };
 }
 
 function computeMissRate(sortedRecords) {
@@ -130,11 +161,7 @@ function computeMissRate(sortedRecords) {
 
 function MiniCurveChart({ records }) {
   if (!records || records.length === 0) {
-    return (
-      <div className="chart-empty">
-        暂无体温曲线数据
-      </div>
-    );
+    return <div className="chart-empty">暂无体温曲线数据</div>;
   }
 
   const width = 360;
@@ -244,12 +271,7 @@ function MiniCurveChart({ records }) {
           </g>
         ))}
 
-        <text
-          x={width / 2}
-          y={height - 8}
-          textAnchor="middle"
-          className="axis-title"
-        >
+        <text x={width / 2} y={height - 8} textAnchor="middle" className="axis-title">
           时间（h）
         </text>
 
@@ -382,6 +404,8 @@ export default function App() {
       missNum,
       missRate,
       best: classification.best,
+      weightedMortality28: classification.weightedMortality28,
+      weightedRssValues: classification.weightedRssValues,
     });
 
     setMessage("整体体温数据提交成功，已完成轨迹分型");
@@ -540,7 +564,7 @@ export default function App() {
                   </div>
                   <div className="stat-item emphasis">
                     <span>预计 28 天病死率</span>
-                    <strong>{finalResult.best.mortality28}</strong>
+                    <strong>{formatPercent(finalResult.weightedMortality28, 1)}</strong>
                   </div>
                 </div>
 
